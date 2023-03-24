@@ -1,28 +1,29 @@
 """
 create Pydantic models
 """
+from random import randint
 from typing import List
 
 from pydantic import BaseModel, validator
-from random import randint
-
 
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
-PRICE_TRESHOLD = 100_000    # for outliers
-WEIGHT_TRESHOLD = 50        # for outliers
+PRICE_TRESHOLD = 100_000  # for outliers
+WEIGHT_TRESHOLD = 50  # for outliers
 NUM_OF_HOURS = 24
 SEED = randint(0, 100000)  # 42
 TEST_SIZE = 0.001
 
-COLS_TO_DROP_ALWAYS = ["delivery_timestamp",
-                       "session_id",
-                       "purchase_id",
-                       "event_type",
-                       "name",
-                       "user_id",
-                       'offered_discount',
-                       'optional_attributes',
-                       'purchase_timestamp']
+COLS_TO_DROP_ALWAYS = [
+    "delivery_timestamp",
+    "session_id",
+    "purchase_id",
+    "event_type",
+    "name",
+    "user_id",
+    "offered_discount",
+    "optional_attributes",
+    "purchase_timestamp",
+]
 
 
 def must_be_non_negative(v: float) -> float:
@@ -55,7 +56,7 @@ class Location(BaseModel):
         "data/raw/deliveries.jsonl",
         "data/raw/products.jsonl",
         "data/raw/sessions.jsonl",
-        "data/raw/users.jsonl"
+        "data/raw/users.jsonl",
     ]
     data_process: str = "data/processed/xy.pkl"
     data_final: str = "data/final/predictions.pkl"
@@ -67,13 +68,21 @@ class Location(BaseModel):
 class ProcessConfig(BaseModel):
     """Specify the parameters of the `process` flow"""
 
-    drop_columns: List[str] = ["Id"]
+    drop_columns: List[str] = [
+        "delivery_timestamp",
+        "session_id",
+        "purchase_id",
+        "event_type",
+        "name",
+        "user_id",
+        "offered_discount",
+        "optional_attributes",
+        "purchase_timestamp",
+    ]
     label: str = "Species"
     test_size: float = 0.3
 
-    _validated_test_size = validator("test_size", allow_reuse=True)(
-        must_be_non_negative
-    )
+    _validated_test_size = validator("test_size", allow_reuse=True)(must_be_non_negative)
 
 
 class ModelParams(BaseModel):
@@ -82,6 +91,4 @@ class ModelParams(BaseModel):
     C: List[float] = [0.1, 1, 10, 100, 1000]
     gamma: List[float] = [1, 0.1, 0.01, 0.001, 0.0001]
 
-    _validated_fields = validator("*", allow_reuse=True, each_item=True)(
-        must_be_non_negative
-    )
+    _validated_fields = validator("*", allow_reuse=True, each_item=True)(must_be_non_negative)
