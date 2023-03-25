@@ -88,7 +88,7 @@ class ProcessConfig(BaseModel):
 class ModelParams(BaseModel):
     """Specify the parameters of the `train` flow"""
 
-    C: List[float] = [0.1, 1, 10, 100, 1000]
-    gamma: List[float] = [1, 0.1, 0.01, 0.001, 0.0001]
+    alpha: List[float] = [0.1, 1, 10, 100, 1000]
+    # gamma: List[float] = [1, 0.1, 0.01, 0.001, 0.0001]
 
     _validated_fields = validator("*", allow_reuse=True, each_item=True)(must_be_non_negative)

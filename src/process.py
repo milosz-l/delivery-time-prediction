@@ -166,6 +166,19 @@ def one_hot_encoding(data: pd.DataFrame, config: ProcessConfig):
 
 
 @task
+def convert_feature_names_to_str(data: pd.DataFrame):
+    """Converts all feature names to string
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Data to process
+    """
+    data.columns = data.columns.astype(str)
+    return data
+
+
+@task
 def normalize_min_max(data: pd.DataFrame, config: ProcessConfig):
     """Performs minmax normalization on specified columns
 
@@ -259,6 +272,7 @@ def process(
     data = merge_data(sessions_df, deliveries_df, products_df, users_df, config)
     processed = drop_columns(data, config.drop_columns)
     processed = one_hot_encoding(processed, config)
+    processed = convert_feature_names_to_str(processed)
     processed = normalize_min_max(processed, config)
     X, y = get_X_y(processed, config.label)
     split_data = split_train_test(X, y, config.test_size, config.SEED)
