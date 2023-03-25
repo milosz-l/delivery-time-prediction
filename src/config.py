@@ -33,12 +33,12 @@ def must_be_non_negative(v: float) -> float:
 class Location(BaseModel):
     """Specify the locations of inputs and outputs"""
 
-    data_raw: List[str] = [
-        "data/raw/deliveries.jsonl",
-        "data/raw/products.jsonl",
-        "data/raw/sessions.jsonl",
-        "data/raw/users.jsonl",
-    ]
+    data_raw: dict = {
+        "deliveries_path": "data/raw/deliveries.jsonl",
+        "products_path": "data/raw/products.jsonl",
+        "sessions_path": "data/raw/sessions.jsonl",
+        "users_path": "data/raw/users.jsonl",
+    }
     data_process: str = "data/processed/xy.pkl"
     data_final: str = "data/final/predictions.pkl"
     model: str = "models/model.pkl"
@@ -67,8 +67,20 @@ class ProcessConfig(BaseModel):
         "optional_attributes",
         "purchase_timestamp",
     ]
-    label: str = "Species"
-    test_size: float = 0.3
+    one_hot_columns: List[str] = [
+        "delivery_company",
+        "city",
+        "street",
+        "city_and_street",
+        "brand",
+        "product_name",
+        "category_path",
+        "day_of_week",
+        "product_id",
+    ]
+    min_max_columns: set = set(["price", "weight_kg", "purchase_datetime_delta", "offered_discount"])
+    label: str = "time_diff"
+    test_size: float = 0.2
 
     _validated_test_size = validator("test_size", allow_reuse=True)(must_be_non_negative)
 
