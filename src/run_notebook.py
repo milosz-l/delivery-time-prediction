@@ -1,8 +1,9 @@
 """Python script to run the notebook"""
 
-from config import Location
 from prefect import flow
 from prefect_jupyter import notebook
+
+from config import Location
 
 
 @flow

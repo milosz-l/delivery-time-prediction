@@ -32,11 +32,11 @@ models/model.pkl: data/processed/xy.pkl src/train_model.py
 	@echo "Training model..."
 	python src/train_model.py
 
-notebooks/results.ipynb: models/model.pkl src/run_notebook.py
+notebook: models/model.pkl src/run_notebook.py
 	@echo "Running notebook..."
 	python src/run_notebook.py
 
-pipeline: data/processed/xy.pkl models/model.pkl notebooks/results.ipynb
+pipeline: data/processed/xy.pkl models/model.pkl notebook
 
 ## Delete all compiled Python files
 clean:

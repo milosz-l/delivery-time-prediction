@@ -42,8 +42,8 @@ class Location(BaseModel):
     data_process: str = "data/processed/xy.pkl"
     data_final: str = "data/final/predictions.pkl"
     model: str = "models/model.pkl"
-    input_notebook: str = "notebooks/analyze_results.ipynb"
-    output_notebook: str = "notebooks/results.ipynb"
+    input_notebook: str = "notebooks/data_analysis.ipynb"
+    output_notebook: str = "notebooks/data_analysis_results.ipynb"
 
 
 class ProcessConfig(BaseModel):
