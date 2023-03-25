@@ -52,8 +52,7 @@ class ProcessConfig(BaseModel):
     DATE_FORMAT: str = "%Y-%m-%dT%H:%M:%S"
     PRICE_TRESHOLD: int = 100_000  # for outliers
     WEIGHT_TRESHOLD: int = 50  # for outliers
-    NUM_OF_HOURS: int = 24
-    SEED: int = randint(0, 100000)  # 42
+    SEED: int = 23  # randint(0, 100000)
     TEST_SIZE: float = 0.001
 
     drop_columns: List[str] = [
@@ -88,7 +87,8 @@ class ProcessConfig(BaseModel):
 class ModelParams(BaseModel):
     """Specify the parameters of the `train` flow"""
 
-    alpha: List[float] = [0.1, 1, 10, 100, 1000]
+    NUM_OF_HOURS: int = 24
+    alpha: List[float] = [0.01, 0.1, 1, 10, 100]
     # gamma: List[float] = [1, 0.1, 0.01, 0.001, 0.0001]
 
     _validated_fields = validator("*", allow_reuse=True, each_item=True)(must_be_non_negative)

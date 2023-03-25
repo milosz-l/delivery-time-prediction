@@ -28,7 +28,7 @@ data/processed/xy.pkl: data/raw src/process.py
 	@echo "Processing data..."
 	python src/process.py
 
-models/model.pkl: data/processed/xy.pkl src/train_model.py
+models/model.pkl: data/processed/xy.pkl src/train_model.py src/config.py
 	@echo "Training model..."
 	python src/train_model.py
 
@@ -36,7 +36,7 @@ notebook: models/model.pkl src/run_notebook.py
 	@echo "Running notebook..."
 	python src/run_notebook.py
 
-pipeline: data/processed/xy.pkl models/model.pkl notebook
+pipeline: data/processed/xy.pkl models/model.pkl
 
 ## Delete all compiled Python files
 clean:
