@@ -199,7 +199,21 @@ def normalize_min_max(data: pd.DataFrame, config: ProcessConfig):
         min_max_scaler = MinMaxScaler()
         x_scaled = min_max_scaler.fit_transform(x.reshape(-1, 1))
         data[col] = x_scaled
-    return data
+    return data, min_max_scaler
+
+
+@task
+def save_scaler(scaler: MinMaxScaler, location_config: Location = Location()):
+    """Saves scaler fitted on training data for later transformations
+
+    Parameters
+    ----------
+    scaler: MinMaxScaler
+        Scaler fitted on training data
+    location_config: Location
+        Config object with location info
+    """
+    joblib.dump(scaler, location_config.scaler)
 
 
 @task
@@ -255,11 +269,8 @@ def save_processed_data(data: dict, save_location: str):
 
 
 @flow
-def process(
-    location: Location = Location(),
-    config: ProcessConfig = ProcessConfig(),
-):
-    """Flow to process the ata
+def process(location: Location = Location(), config: ProcessConfig = ProcessConfig()):
+    """Flow to process the data
 
     Parameters
     ----------
@@ -273,10 +284,25 @@ def process(
     processed = drop_columns(data, config.drop_columns)
     processed = one_hot_encoding(processed, config)
     processed = convert_feature_names_to_str(processed)
-    processed = normalize_min_max(processed, config)
+    processed, min_max_scaler = normalize_min_max(processed, config)
+    save_scaler(min_max_scaler)
     X, y = get_X_y(processed, config.label)
     split_data = split_train_test(X, y, config.test_size, config.SEED)
     save_processed_data(split_data, location.data_process)
+
+
+def process_query(query_df: pd.DataFrame, config: ProcessConfig = ProcessConfig()):
+    """Process data for prediction
+
+    Parameters
+    ----------
+    query_df : pd.DataFrame
+        DataFrame with data given in the post request
+    config : ProcessConfig, optional
+        Configurations for processing data, by default ProcessConfig()
+    """
+    query_df = one_hot_encoding(query_df, config)
+    query_df = convert_feature_names_to_str(query_df)
 
 
 if __name__ == "__main__":

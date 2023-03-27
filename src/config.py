@@ -42,6 +42,7 @@ class Location(BaseModel):
     data_process: str = "data/processed/xy.pkl"
     data_final: str = "data/final/predictions.pkl"
     model: str = "models/model.pkl"
+    scaler: str = "models/scaler.pkl"
     input_notebook: str = "notebooks/data_analysis.ipynb"
     output_notebook: str = "notebooks/data_analysis_results.ipynb"
 
