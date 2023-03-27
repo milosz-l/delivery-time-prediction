@@ -16,6 +16,7 @@ interrogate = "^1.5.0"
 joblib = "^1.2.0"
 seaborn = "^0.12.2"
 statsmodels = "^0.13.5"
+flask = "^2.2.3"
 
 
 [tool.poetry.dev-dependencies]

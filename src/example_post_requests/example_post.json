@@ -1,0 +1,25 @@
+[{
+    "purchase_id": 20000,
+    "purchase_timestamp": "2021-11-07T06:15:13",
+    "delivery_company": 360,
+
+    "product_id": 1156,
+    "product_name": "Słuchawki nauszne Corsair HS35",
+    "category_path": "Mikrofony i słuchawki;Słuchawki przewodowe",
+    "price": 159.0,
+    "brand": "Corsair",
+    "weight_kg": 0.52,
+    "optional_attributes": {
+        "color": "czarny"
+    },
+
+    "session_id": 125,
+    "event_type": "BUY_PRODUCT",
+    "offered_discount": 10,
+    
+    "user_id": 113,
+    "name": "Ada Klaus",
+    "city": "Wrocław",
+    "street": "pl. Spółdzielcza 129"
+    
+}]

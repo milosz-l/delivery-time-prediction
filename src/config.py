@@ -42,6 +42,7 @@ class Location(BaseModel):
     data_process: str = "data/processed/xy.pkl"
     data_final: str = "data/final/predictions.pkl"
     model: str = "models/model.pkl"
+    encoder: str = "models/encoder.pkl"
     scaler: str = "models/scaler.pkl"
     input_notebook: str = "notebooks/data_analysis.ipynb"
     output_notebook: str = "notebooks/data_analysis_results.ipynb"
@@ -93,3 +94,9 @@ class ModelParams(BaseModel):
     # gamma: List[float] = [1, 0.1, 0.01, 0.001, 0.0001]
 
     _validated_fields = validator("*", allow_reuse=True, each_item=True)(must_be_non_negative)
+
+
+class AppConfig(BaseModel):
+    """Specify the parameters of web service for model deployment"""
+
+    port = 5000

@@ -1,6 +1,7 @@
 """Python script to process the data"""
 
 import datetime
+import logging
 from typing import List
 
 import joblib
@@ -8,7 +9,7 @@ import numpy as np
 import pandas as pd
 from prefect import flow, task
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 
 from config import Location, ProcessConfig
 
@@ -136,6 +137,7 @@ def _one_hot_encode_single_col(df: pd.DataFrame, col_name: str):
     col_name : str
         Name of the column to perform one-hot encoding on
     """
+    logging.debug(f"one hot encoding column named: {col_name}")
     one_hot = pd.get_dummies(df[col_name], drop_first=False)
     df = df.drop(columns=col_name)
     df = df.join(one_hot)
@@ -159,10 +161,42 @@ def one_hot_encoding(data: pd.DataFrame, config: ProcessConfig):
     cols = set(cols)
     cols_in_df = set(data.columns.values.tolist())
     cols_to_one_hot = cols.intersection(cols_in_df)
-    for col_name in cols_to_one_hot:
-        data = _one_hot_encode_single_col(data, col_name)
+    encoder = OneHotEncoder(handle_unknown="ignore", sparse=False)
+    encoded = encoder.fit_transform(data[cols_to_one_hot]).toarray()
+    data = data.join(encoded)
+    data = data.drop(columns=cols_to_one_hot)
     data = data.dropna()
-    return data
+    return data, encoder
+
+
+@task
+def save_encoder(encoder: OneHotEncoder, location_config: Location = Location()):
+    """Saves one-hot encoder fitted on training data for later transformations
+
+    Parameters
+    ----------
+    scaler: MinMaxScaler
+        Scaler fitted on training data
+    location_config: Location, optional
+        Locations of inputs and outputs, by default Location()
+    """
+    joblib.dump(encoder, location_config.encoder)
+
+
+@task
+def one_hot_encoding_with_fitted_encoder(query_df: pd.DataFrame, encoder: OneHotEncoder):
+    """Performs one-hot encoding using already fitted scaler given as an argument
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Data to process
+    encoder : OneHotEncoder
+        already fitted encoder
+    """
+    encoded = encoder.transform(query_df)
+    # TODO: finish this
+    return encoded
 
 
 @task
@@ -178,6 +212,22 @@ def convert_feature_names_to_str(data: pd.DataFrame):
     return data
 
 
+def specify_columns_for_scaling(min_max_columns: List[str], data: pd.DataFrame):
+    """Determines which columns to scale based on intersection of min_max columns given in config and columns in df
+
+    Parameters
+    ----------
+    min_max_columns : List[str]
+        columns for min_max scaling specified in config
+    data : pd.DataFrame
+        Data to process
+    """
+    cols_to_min_max = min_max_columns
+    cols_in_df = set(data.columns.values.tolist())
+    cols_to_min_max = cols_to_min_max.intersection(cols_in_df)
+    return list(cols_to_min_max)
+
+
 @task
 def normalize_min_max(data: pd.DataFrame, config: ProcessConfig):
     """Performs minmax normalization on specified columns
@@ -189,17 +239,30 @@ def normalize_min_max(data: pd.DataFrame, config: ProcessConfig):
     config : ProcessConfig
         config object with constants
     """
-    # specify columns for min-max scaling
-    cols_to_min_max = config.min_max_columns
-    cols_in_df = set(data.columns.values.tolist())
-    cols_to_min_max = cols_to_min_max.intersection(cols_in_df)
+    cols_to_min_max = specify_columns_for_scaling(config.min_max_columns, data)
 
-    for col in cols_to_min_max:
-        x = data[col].values
-        min_max_scaler = MinMaxScaler()
-        x_scaled = min_max_scaler.fit_transform(x.reshape(-1, 1))
-        data[col] = x_scaled
-    return data, min_max_scaler
+    scaler = MinMaxScaler()
+    data[cols_to_min_max] = scaler.fit_transform(data[cols_to_min_max])
+    return data, scaler
+
+
+@task
+def normalize_min_max_with_fitted_scaler(data: pd.DataFrame, config: ProcessConfig, scaler: MinMaxScaler):
+    """Performs minmax normalization on specified columns using already fitted scaler given as an argument
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Data to process
+    config : ProcessConfig
+        config object with constants
+    scaler : MinMaxScaler
+        already fitted scaler
+    """
+    cols_to_min_max = specify_columns_for_scaling(config.min_max_columns, data)
+
+    data[cols_to_min_max] = scaler.transform(data[cols_to_min_max])
+    return data, scaler
 
 
 @task
@@ -210,8 +273,8 @@ def save_scaler(scaler: MinMaxScaler, location_config: Location = Location()):
     ----------
     scaler: MinMaxScaler
         Scaler fitted on training data
-    location_config: Location
-        Config object with location info
+    location_config: Location, optional
+        Locations of inputs and outputs, by default Location()
     """
     joblib.dump(scaler, location_config.scaler)
 
@@ -282,7 +345,8 @@ def process(location: Location = Location(), config: ProcessConfig = ProcessConf
     sessions_df, deliveries_df, products_df, users_df = get_raw_data(location.data_raw)
     data = merge_data(sessions_df, deliveries_df, products_df, users_df, config)
     processed = drop_columns(data, config.drop_columns)
-    processed = one_hot_encoding(processed, config)
+    processed, encoder = one_hot_encoding(processed, config)
+    save_encoder(encoder)
     processed = convert_feature_names_to_str(processed)
     processed, min_max_scaler = normalize_min_max(processed, config)
     save_scaler(min_max_scaler)
@@ -291,18 +355,27 @@ def process(location: Location = Location(), config: ProcessConfig = ProcessConf
     save_processed_data(split_data, location.data_process)
 
 
-def process_query(query_df: pd.DataFrame, config: ProcessConfig = ProcessConfig()):
+@flow
+def process_query(query: List, config: ProcessConfig = ProcessConfig(), location_config: Location = Location()):
     """Process data for prediction
 
     Parameters
     ----------
-    query_df : pd.DataFrame
-        DataFrame with data given in the post request
+    query : List
+        List with data given in the post request
     config : ProcessConfig, optional
         Configurations for processing data, by default ProcessConfig()
+    location_config : Location, optional
+        Locations of inputs and outputs, by default Location()
     """
-    query_df = one_hot_encoding(query_df, config)
+    query_df = pd.DataFrame(query)
+    # query_df = one_hot_encoding(query_df, config)
+    encoder = joblib.load(location_config.encoder)
+    query_df = one_hot_encoding_with_fitted_encoder(query_df, encoder)
     query_df = convert_feature_names_to_str(query_df)
+    scaler = joblib.load(location_config.scaler)
+    query_df = normalize_min_max_with_fitted_scaler(query_df, config, scaler)
+    return query_df
 
 
 if __name__ == "__main__":

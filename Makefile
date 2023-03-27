@@ -38,6 +38,10 @@ notebook: models/model.pkl src/run_notebook.py
 
 pipeline: data/processed/xy.pkl models/model.pkl
 
+app: pipeline
+	@echo "Starting the web service..."
+	python src/app.py
+
 ## Delete all compiled Python files
 clean:
 	find . -type f -name "*.py[co]" -delete

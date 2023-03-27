@@ -1,0 +1,23 @@
+[{
+    "purchase_id": 20000,
+    "purchase_timestamp": "2021-11-14T12:22:13",
+    "delivery_company": 620,
+
+    "product_id": 1368,
+    "product_name": "Skaner Brother ADS-2400N",
+    "category_path": "Skanery;Profesjonalne",
+    "price": 680.0,
+    "brand": "Brother",
+    "weight_kg": 6.2,
+    "optional_attributes": {},
+
+    "session_id": 124,
+    "event_type": "BUY_PRODUCT",
+    "offered_discount": 5,
+    
+    "user_id": 102,
+    "name": "Monika Forysiak",
+    "city": "Wrocław",
+    "street": "plac Dębowa 11/53"
+    
+}]
