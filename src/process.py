@@ -1,13 +1,13 @@
 """Python script to process the data"""
 
 import datetime
-import logging
 from typing import List
 
 import joblib
 import numpy as np
 import pandas as pd
-from prefect import flow, task
+from prefect import flow, get_run_logger, task
+from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 
@@ -33,15 +33,32 @@ def get_raw_data(data_locations: dict):
     return sessions_df, deliveries_df, products_df, users_df
 
 
+def feature_engineering(df: pd.DataFrame):
+    """Perform feature engineering on given DataFrame
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+    """
+    # adding column with day of week
+    df["day_of_week"] = df["purchase_timestamp"].dt.dayofweek
+
+    # adding city_and_street interaction column
+    df["city_and_street"] = df["city"] + " " + df["street"]
+
+    return df
+
+
 @task
-def merge_data(
+def prepare_training_df(
     sessions_df: pd.DataFrame,
     deliveries_df: pd.DataFrame,
     products_df: pd.DataFrame,
     users_df: pd.DataFrame,
     config: ProcessConfig,
+    location: Location,
 ):
-    """Merge fact table and dimension tables
+    """Merge fact table and dimension tables, then prepare training DataFrame
 
     Parameters
     ----------
@@ -55,6 +72,8 @@ def merge_data(
         dimension table
     config : ProcessConfig
         config object with constants
+    location : Location
+        Locations of inputs and outputs, by default Location()
     """
     # 1. Cut microseconds from `delivery_timestamp`, so it will be the same format as `purchase_timestamp`, because there are no microseconds in purchase_timestamp (using "." as a separator).
     deliveries_df["delivery_timestamp"] = deliveries_df["delivery_timestamp"].str.split(".", expand=True)[0]
@@ -101,16 +120,41 @@ def merge_data(
     # deleting rows with time_diff below 0
     df = df[df["time_diff"] >= 0]
 
-    # adding column with day of week
-    df["day_of_week"] = df["purchase_timestamp"].dt.dayofweek
-
-    # adding city_and_street interaction column
-    df["city_and_street"] = df["city"] + " " + df["street"]
+    df = feature_engineering(df)
 
     # adding continuous variable from purchase_timestamp (days from the first date)
-    df["purchase_datetime_delta"] = (df["purchase_timestamp"] - df["purchase_timestamp"].min()) / np.timedelta64(1, "D")
+    min_purchase_timestamp = df["purchase_timestamp"].min()
+    df["purchase_datetime_delta"] = (df["purchase_timestamp"] - min_purchase_timestamp) / np.timedelta64(1, "D")
+    joblib.dump(min_purchase_timestamp, location.min_purchase_timestamp)
 
     return df
+
+
+@task
+def prepare_test_df(query: pd.DataFrame, config: ProcessConfig, location: Location):
+    """Prepare query for preprocessing
+
+    Parameters
+    ----------
+    query : pd.DataFrame
+        Query for prediction (single line as a DataFrame)
+    config : ProcessConfig
+        config object with constants
+    location : Location
+        Locations of inputs and outputs, by default Location()
+    """
+    # Change columns format to datetime.
+    query["purchase_timestamp"] = pd.to_datetime(query["purchase_timestamp"], format=config.DATE_FORMAT)
+
+    # drop rows where event_type is not equal "BUY_PRODUCT"
+    query = query[query["event_type"] == "BUY_PRODUCT"]
+
+    query = feature_engineering(query)
+
+    min_purchase_timestamp = joblib.load(location.min_purchase_timestamp)
+    query["purchase_datetime_delta"] = (query["purchase_timestamp"] - min_purchase_timestamp) / np.timedelta64(1, "D")
+
+    return query
 
 
 @task
@@ -137,7 +181,6 @@ def _one_hot_encode_single_col(df: pd.DataFrame, col_name: str):
     col_name : str
         Name of the column to perform one-hot encoding on
     """
-    logging.debug(f"one hot encoding column named: {col_name}")
     one_hot = pd.get_dummies(df[col_name], drop_first=False)
     df = df.drop(columns=col_name)
     df = df.join(one_hot)
@@ -145,9 +188,8 @@ def _one_hot_encode_single_col(df: pd.DataFrame, col_name: str):
     return df
 
 
-@task
-def one_hot_encoding(data: pd.DataFrame, config: ProcessConfig):
-    """One hot encoding
+def specify_cols_for_one_hot(data: pd.DataFrame, config: ProcessConfig):
+    """Specify columns for one-hot encoding
 
     Parameters
     ----------
@@ -161,6 +203,22 @@ def one_hot_encoding(data: pd.DataFrame, config: ProcessConfig):
     cols = set(cols)
     cols_in_df = set(data.columns.values.tolist())
     cols_to_one_hot = cols.intersection(cols_in_df)
+    cols_to_one_hot = list(cols_to_one_hot)
+    return cols_to_one_hot
+
+
+@task
+def one_hot_encoding(data: pd.DataFrame, config: ProcessConfig):
+    """One hot encoding
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Data to process
+    config : ProcessConfig
+        config object with constants
+    """
+    cols_to_one_hot = specify_cols_for_one_hot(data, config)
     encoder = OneHotEncoder(handle_unknown="ignore", sparse=False)
     encoded = encoder.fit_transform(data[cols_to_one_hot]).toarray()
     data = data.join(encoded)
@@ -222,7 +280,7 @@ def specify_columns_for_scaling(min_max_columns: List[str], data: pd.DataFrame):
     data : pd.DataFrame
         Data to process
     """
-    cols_to_min_max = min_max_columns
+    cols_to_min_max = set(min_max_columns)
     cols_in_df = set(data.columns.values.tolist())
     cols_to_min_max = cols_to_min_max.intersection(cols_in_df)
     return list(cols_to_min_max)
@@ -331,6 +389,33 @@ def save_processed_data(data: dict, save_location: str):
     joblib.dump(data, save_location)
 
 
+@task
+def create_preprocessor(X: pd.DataFrame, config: ProcessConfig):
+    """Creates sklearn preprocessor
+
+    Parameters
+    ----------
+    X : pd.DataFrame
+        dataframe with training data
+    config : ProcessConfig, optional
+        Configurations for processing data, by default ProcessConfig()
+    """
+    categorical_cols = specify_cols_for_one_hot(X, config)
+    numerical_cols = specify_columns_for_scaling(config.min_max_columns, X)
+    preprocessor = ColumnTransformer(
+        transformers=[
+            (
+                "cat",
+                OneHotEncoder(handle_unknown="ignore"),
+                categorical_cols,
+            ),  # categorical_cols is a list of categorical columns
+            ("num", MinMaxScaler(), numerical_cols),  # numerical_cols is a list of numerical columns
+        ],
+        # remainder="passthrough"
+    )
+    return preprocessor
+
+
 @flow
 def process(location: Location = Location(), config: ProcessConfig = ProcessConfig()):
     """Flow to process the data
@@ -343,15 +428,24 @@ def process(location: Location = Location(), config: ProcessConfig = ProcessConf
         Configurations for processing data, by default ProcessConfig()
     """
     sessions_df, deliveries_df, products_df, users_df = get_raw_data(location.data_raw)
-    data = merge_data(sessions_df, deliveries_df, products_df, users_df, config)
-    processed = drop_columns(data, config.drop_columns)
-    processed, encoder = one_hot_encoding(processed, config)
-    save_encoder(encoder)
-    processed = convert_feature_names_to_str(processed)
-    processed, min_max_scaler = normalize_min_max(processed, config)
-    save_scaler(min_max_scaler)
-    X, y = get_X_y(processed, config.label)
-    split_data = split_train_test(X, y, config.test_size, config.SEED)
+    data = prepare_training_df(sessions_df, deliveries_df, products_df, users_df, config, location)
+    data = drop_columns(data, config.drop_columns)
+    X, y = get_X_y(data, config.label)
+
+    # processed, encoder = one_hot_encoding(processed, config)
+    # save_encoder(encoder)
+    # processed = convert_feature_names_to_str(processed)
+    # processed, min_max_scaler = normalize_min_max(processed, config)
+    # save_scaler(min_max_scaler)
+    preprocessor = create_preprocessor(X, config)
+
+    # Fit the preprocessor to your training data and transform the data
+    X_train_transformed = preprocessor.fit_transform(X)
+    logger = get_run_logger()
+    logger.info(f"preprocessor's transformers:\n{preprocessor.transformers_}")
+    joblib.dump(preprocessor, location.preprocessor)
+
+    split_data = split_train_test(X_train_transformed, y, config.test_size, config.SEED)
     save_processed_data(split_data, location.data_process)
 
 
@@ -368,13 +462,19 @@ def process_query(query: List, config: ProcessConfig = ProcessConfig(), location
     location_config : Location, optional
         Locations of inputs and outputs, by default Location()
     """
+    logger = get_run_logger()
     query_df = pd.DataFrame(query)
-    # query_df = one_hot_encoding(query_df, config)
-    encoder = joblib.load(location_config.encoder)
-    query_df = one_hot_encoding_with_fitted_encoder(query_df, encoder)
-    query_df = convert_feature_names_to_str(query_df)
-    scaler = joblib.load(location_config.scaler)
-    query_df = normalize_min_max_with_fitted_scaler(query_df, config, scaler)
+    # encoder = joblib.load(location_config.encoder)
+    # query_df = one_hot_encoding_with_fitted_encoder(query_df, encoder)
+    # query_df = convert_feature_names_to_str(query_df)
+    # scaler = joblib.load(location_config.scaler)
+    # query_df = normalize_min_max_with_fitted_scaler(query_df, config, scaler)
+    query_df = prepare_test_df(query_df, config, location_config)
+    logger.info(f"query before preprocessing:\n{query_df}")
+    preprocessor = joblib.load(location_config.preprocessor)
+    query_df = preprocessor.transform(query_df)
+    logger.info(f"columns in encoder: {preprocessor}")
+    logger.info(f"query after preprocessing:\n{query_df}")
     return query_df
 
 

@@ -44,6 +44,8 @@ class Location(BaseModel):
     model: str = "models/model.pkl"
     encoder: str = "models/encoder.pkl"
     scaler: str = "models/scaler.pkl"
+    preprocessor: str = "models/preprocessor.pkl"
+    min_purchase_timestamp: str = "models/min_purchase_timestamp.pkl"
     input_notebook: str = "notebooks/data_analysis.ipynb"
     output_notebook: str = "notebooks/data_analysis_results.ipynb"
 
@@ -79,7 +81,7 @@ class ProcessConfig(BaseModel):
         "day_of_week",
         "product_id",
     ]
-    min_max_columns: set = set(["price", "weight_kg", "purchase_datetime_delta", "offered_discount"])
+    min_max_columns: List[str] = ["price", "weight_kg", "purchase_datetime_delta", "offered_discount"]
     label: str = "time_diff"
     test_size: float = 0.2
 
@@ -90,7 +92,7 @@ class ModelParams(BaseModel):
     """Specify the parameters of the `train` flow"""
 
     NUM_OF_HOURS: int = 24
-    alpha: List[float] = [0.01, 0.1, 1, 10, 100]
+    alpha: List[float] = [0.01, 0.1]
     # gamma: List[float] = [1, 0.1, 0.01, 0.001, 0.0001]
 
     _validated_fields = validator("*", allow_reuse=True, each_item=True)(must_be_non_negative)
