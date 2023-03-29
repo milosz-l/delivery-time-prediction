@@ -39,14 +39,7 @@ def test_preprocessor():
     X, Y = get_X_y.fn(data, label=test_config.label)
     preprocessor = create_preprocessor.fn(X, test_config)
 
-    print("X before transformation:\n", X)
-    X_train_transformed = preprocessor.fit_transform(X)
-    print("X after transformation:\n", X_train_transformed)
-    print("------ preprocessor fit_transform on training data info: ------")
-    print(preprocessor.output_indices_)
-    print("transformers:")
-    print(preprocessor.transformers_)
-    print(preprocessor.get_feature_names_out())
+    preprocessor.fit_transform(X)
 
     # test data
     test_data = pd.DataFrame(
@@ -58,17 +51,7 @@ def test_preprocessor():
             "X3": [5, 6, 7, 8],
         }
     )
-    print("test data before transformation:")
-    print(test_data)
     test_data_transformed = preprocessor.transform(test_data)
-    print("test data after transformation:")
-    print(test_data_transformed)
-    print(f"type = {type(test_data_transformed)}")
-    print("------ preprocessor transform on test_data info: ------")
-    print(preprocessor.output_indices_)
-    print("transformers:")
-    print(preprocessor.transformers_)
-    print(preprocessor.get_feature_names_out())
     test_data_transformed = pd.DataFrame(test_data_transformed)
     test_data_transformed.columns = preprocessor.get_feature_names_out()
     test_data_transformed = test_data_transformed[sorted(test_data_transformed.columns)]
@@ -79,4 +62,5 @@ def test_preprocessor():
     expected_test_data_after_transformation = expected_test_data_after_transformation[
         sorted(expected_test_data_after_transformation.columns)
     ]
+
     assert_frame_equal(test_data_transformed, expected_test_data_after_transformation)

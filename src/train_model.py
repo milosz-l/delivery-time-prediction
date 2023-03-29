@@ -2,7 +2,7 @@
 import joblib
 import numpy as np
 import pandas as pd
-from prefect import flow, task
+from prefect import flow, get_run_logger, task
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import GridSearchCV
@@ -79,7 +79,7 @@ def save_predictions(predictions: np.array, save_path: str):
 
 
 @task
-def print_percent_of_good_predictions(model: GridSearchCV, predictions: np.array, y_test: np.array, error=24 * 60 * 60):
+def log_percent_of_good_predictions(model: GridSearchCV, predictions: np.array, y_test: np.array, error=24 * 60 * 60):
     """Show percent of good predictions for +- 24 hours
 
     Parameters
@@ -95,10 +95,11 @@ def print_percent_of_good_predictions(model: GridSearchCV, predictions: np.array
     predictions_time_diff = np.abs(y_test - predictions)
     num_of_good_predictions = (predictions_time_diff < error).sum()
     percent_of_good_predictions = num_of_good_predictions / len(predictions_time_diff)
-    print(
+    logger = get_run_logger()
+    logger.info(
         f"number of good predictions for {type(model).__name__} = {num_of_good_predictions}/{len(predictions_time_diff)}"
     )
-    print(f"which is {percent_of_good_predictions * 100}% for +-{round(error/60/60)} hours\n")
+    logger.info(f"which is {percent_of_good_predictions * 100}% for +-{round(error/60/60)} hours\n")
 
 
 @flow
@@ -120,7 +121,7 @@ def train(
     predictions = predict(model, data["X_test"])
     save_model(model, save_path=location.model)
     save_predictions(predictions, save_path=location.data_final)
-    print_percent_of_good_predictions(model, predictions, data["y_test"], model_params.NUM_OF_HOURS * 60 * 60)
+    log_percent_of_good_predictions(model, predictions, data["y_test"], model_params.NUM_OF_HOURS * 60 * 60)
 
 
 if __name__ == "__main__":
