@@ -16,7 +16,6 @@ app_config = AppConfig()
 def predict():
     # prepare data
     json_ = request.json
-    # query_df = pd.DataFrame(json_)
     query_df = process_query(json_)
 
     # load model
