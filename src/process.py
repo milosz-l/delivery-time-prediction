@@ -122,6 +122,9 @@ def prepare_training_df(
 
     df = feature_engineering(df)
 
+    # sort by date for train_test split
+    df = df.sort_values("purchase_timestamp", ascending=True)
+
     # adding continuous variable from purchase_timestamp (days from the first date)
     min_purchase_timestamp = df["purchase_timestamp"].min()
     df["purchase_datetime_delta"] = (df["purchase_timestamp"] - min_purchase_timestamp) / np.timedelta64(1, "D")
@@ -235,7 +238,7 @@ def split_train_test(X: pd.DataFrame, y: pd.DataFrame, test_size: int, seed: int
     test_size : int
         Size of the test set
     """
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=seed)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, shuffle=False, random_state=seed)
     return {
         "X_train": X_train,
         "X_test": X_test,
