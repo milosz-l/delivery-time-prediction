@@ -67,6 +67,7 @@ So we want to be able to predict the delivery time of a product purchased at a g
 
 **Results:**
 In the end, the model is correct with an accuracy of +- 24 hours in 93% of cases, so the success criteria was met.
+![](images/num_of_good_predictions.png)
 
 ## Selected algorithm
 After comparing several regression models, [RandomForestRegressor](https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestRegressor.html) was selected. The results given by this model were far better than results given by linear regression models.
