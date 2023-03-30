@@ -9,10 +9,10 @@ The project included the following steps:
 3. Preparing model for deployment as a web service
 
 ## Technical aspects
-- All code is organized in a readable structure
+- Code is organized in a readable structure
 - [Poetry](https://python-poetry.org/) allows for easy and effective management of dependencies
 - `Makefile` contains short commands for repeatable tasks
-- Only modified components of the pipeline will be rerunned
+- Only modified components of the pipeline will be rerun
     - e.g. `make pipeline` won't run process data if it's not necessary - it will go straight to training
 - Thanks to [pre-commit](https://pre-commit.com/), before every commit the following steps are made automatically:
     1. Code formatting using [black](https://pypi.org/project/black/)
@@ -20,10 +20,10 @@ The project included the following steps:
     3. Imports are being sorted with [isort](https://pycqa.github.io/isort/)
     4. [interrogate](https://interrogate.readthedocs.io/en/latest/) checks if there are any missing docstrings (if some must-have conditions are not met, the commit will fail - this forces to write good quality code)
 - [pdoc](https://github.com/pdoc3/pdoc) automatically generates documentation
-<!-- - Tests are run automatically on commit
-- The code includes type hints -->
 - [Prefect](https://www.prefect.io/) allows you to observe and orchestrate the data processing / training pipeline, for example:
 ![](images/prefect_training_flow.png)
+<!-- - Tests are run automatically on commit
+- The code includes type hints -->
 
 
 ### Project structure explained
